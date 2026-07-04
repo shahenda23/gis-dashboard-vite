@@ -1,0 +1,61 @@
+import { createContext, useContext, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
+import type { User, Session } from '@supabase/supabase-js'
+import { supabase } from '../lib/supabase'
+
+interface AuthContextType {
+  user: User | null
+  session: Session | null
+  loading: boolean
+  isSigningOut: boolean
+  signOut: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType | null>(null)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser]             = useState<User | null>(null)
+  const [session, setSession]       = useState<Session | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
+  useEffect(() => {
+    // get current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
+
+    // listen for changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session)
+        setUser(session?.user ?? null)
+        setLoading(false)
+      }
+    )
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function signOut() {
+    setIsSigningOut(true)
+    setUser(null)
+    setSession(null)
+    await supabase.auth.signOut()
+    setIsSigningOut(false)
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, session, loading, isSigningOut, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
+  return ctx
+}
