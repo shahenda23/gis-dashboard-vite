@@ -27,7 +27,7 @@ function SettingsPanel() {
   function renderSettings() {
     if (!selectedWidget) return null
     const config = selectedWidget.config ?? {}
-    
+
 
     switch (selectedWidget.type) {
       case 'map':           return <MapSettings widgetId={selectedWidget.id} config={config as any} />

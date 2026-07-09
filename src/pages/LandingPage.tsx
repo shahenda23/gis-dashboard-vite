@@ -105,7 +105,7 @@ const T = {
       popular: 'MOST POPULAR',
       plans: [
         { name: 'Starter', price: 'Free',   period: 'forever',     desc: 'Perfect for small teams and personal projects.',    features: ['3 dashboards','5 map layers','GeoJSON & CSV upload','Public sharing','Community support'], cta: 'Get Started Free', featured: false },
-        { name: 'Pro',     price: '$29',    period: 'per month',   desc: 'For growing teams that need full power.',          features: ['Unlimited dashboards','All layer types','Real-time data','Custom themes','API access','Priority support','Password-protected shares','Analytics export'], cta: 'Start Pro Trial', featured: true },
+        { name: 'Pro',     price: '$6',    period: 'per month',   desc: 'For growing teams that need full power.',          features: ['Unlimited dashboards','All layer types','Real-time data','Custom themes','API access','Priority support','Password-protected shares','Analytics export'], cta: 'Start Pro Trial', featured: true },
         { name: 'Enterprise', price: 'Custom', period: 'contact us', desc: 'Mission-critical deployments with SLA guarantees.', features: ['Everything in Pro','SSO & SAML','RBAC & audit logs','On-premise option','Dedicated SLA','Custom integrations','Onboarding support'], cta: 'Contact Sales', featured: false },
       ],
     },

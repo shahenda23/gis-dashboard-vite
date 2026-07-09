@@ -140,7 +140,7 @@ function UserMenu() {
                 </svg>
               }
               label={t.templates}
-              onClick={() => { navigate('/templates'); setOpen(false) }}
+              onClick={() => { navigate('/home?tab=templates'); setOpen(false) }}
             />
 
             <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />

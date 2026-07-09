@@ -608,6 +608,8 @@ function MapSettings({ widgetId, config }: MapSettingsProps) {
   const t = {
     en: {
       layer: 'Map Layer',
+      mapLayers: 'Map Layers',
+      noLayersYet: 'Add a layer from the Layers panel first',
       style: 'Map Style',
       zoom: 'Default Zoom Level',
       navigation: 'Show Navigation Controls',
@@ -617,14 +619,16 @@ function MapSettings({ widgetId, config }: MapSettingsProps) {
       legend: 'Show Legend',
       popup: 'Show Feature Popup',
       popupDesc: 'Shows a popup with feature info when clicking on the map',
+      popupLayer: 'Popup Data Layer',
+      popupNoLayer: 'Select a layer above to configure its popup fields',
       legendDesc: 'Shows a panel listing the visible map layers',
-      allowZoom: 'Allow User Zoom',
-      allowZoomDesc: 'User can zoom in/out with scroll or pinch',
       allowPan: 'Allow User Pan',
       allowPanDesc: 'User can drag the map to move around',
     },
     ar: {
       layer: 'طبقة الخريطة',
+      mapLayers: 'طبقات الخريطة',
+      noLayersYet: 'أضف طبقة من لوحة الطبقات أولاً',
       style: 'نمط الخريطة',
       zoom: 'مستوى التكبير الافتراضي',
       navigation: 'إظهار أدوات التنقل',
@@ -633,10 +637,10 @@ function MapSettings({ widgetId, config }: MapSettingsProps) {
       scaleDesc: 'يعرض مقياساً للمسافة في أسفل الخريطة',
       popup: 'إظهار النافذة المنبثقة',
       popupDesc: 'يعرض نافذة منبثقة مع معلومات الميزات عند النقر على الخريطة',
+      popupLayer: 'طبقة بيانات النافذة المنبثقة',
+      popupNoLayer: 'اختر طبقة أعلاه لتهيئة حقول النافذة المنبثقة',
       legend: 'إظهار المفتاح',
       legendDesc: 'يعرض لوحة بأسماء الطبقات المرئية على الخريطة',
-      allowZoom: 'السماح بالتكبير',
-      allowZoomDesc: 'يمكن للمستخدم التكبير بالتمرير أو القرص',
       allowPan: 'السماح بالتحريك',
       allowPanDesc: 'يمكن للمستخدم سحب الخريطة للتنقل',
     },
@@ -657,11 +661,50 @@ function MapSettings({ widgetId, config }: MapSettingsProps) {
 
       {activeTab === 'data' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <SettingsSection title={t.layer}>
-            <LayerSelect
-              value={config.layerId ?? ''}
-              onChange={v => updateConfig({ layerId: v, popupFields: undefined, popupTitleField: undefined })}
-            />
+          <SettingsSection title={t.mapLayers}>
+            {layers.length === 0 ? (
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+                {t.noLayersYet}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {layers.map(l => {
+                  const checked = config.visibleLayerIds ? config.visibleLayerIds.includes(l.id) : true
+                  return (
+                    <label
+                      key={l.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => {
+                          const current = config.visibleLayerIds ?? layers.map(x => x.id)
+                          const updated = e.target.checked
+                            ? [...current, l.id]
+                            : current.filter(id => id !== l.id)
+                          updateConfig({ visibleLayerIds: updated })
+                        }}
+                        style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}
+                      />
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: l.color, flexShrink: 0 }} />
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {l.name}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
           </SettingsSection>
 
           <SettingsSection title={t.style}>
@@ -736,86 +779,103 @@ function MapSettings({ widgetId, config }: MapSettingsProps) {
             description={t.popupDesc}
           />
 
-          {config.showPopup && availableFields.length > 0 && (
+          {config.showPopup && (
             <SettingsSection title={lang === 'ar' ? 'إعدادات النافذة المنبثقة' : 'Popup Configuration'}>
-              {/* ── Title field ── */}
+              {/* ── Layer picker ── */}
               <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                  {lang === 'ar' ? 'حقل العنوان' : 'Title Field'}
-                </label>
-                <select
-                  value={config.popupTitleField ?? ''}
-                  onChange={e => updateConfig({ popupTitleField: e.target.value || undefined })}
-                  style={{
-                    width: '100%',
-                    padding: '6px 8px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    background: 'var(--input-bg)',
-                    color: 'var(--text-primary)',
-                    fontSize: '12px',
-                  }}
-                >
-                  <option value="">{lang === 'ar' ? '-- بدون عنوان --' : '-- No title --'}</option>
-                  {availableFields.map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
+                <LayerSelect
+                  label={t.popupLayer}
+                  value={config.layerId ?? ''}
+                  onChange={v => updateConfig({ layerId: v, popupFields: undefined, popupTitleField: undefined })}
+                />
               </div>
 
-              {/* ── Field list ── */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {popupFields.map((pf, i) => (
-                  <div
-                    key={pf.field}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '18px 1fr',
-                      gap: '8px',
-                      alignItems: 'center',
-                      padding: '8px 10px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border)',
-                      background: pf.visible ? 'var(--page-bg)' : 'transparent',
-                      opacity: pf.visible ? 1 : 0.5,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={pf.visible}
-                      onChange={e => {
-                        const updated = popupFields.map((f, j) =>
-                          j === i ? { ...f, visible: e.target.checked } : f
-                        )
-                        updateConfig({ popupFields: updated })
+              {availableFields.length === 0 ? (
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+                  {t.popupNoLayer}
+                </p>
+              ) : (
+                <>
+                  {/* ── Title field ── */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      {lang === 'ar' ? 'حقل العنوان' : 'Title Field'}
+                    </label>
+                    <select
+                      value={config.popupTitleField ?? ''}
+                      onChange={e => updateConfig({ popupTitleField: e.target.value || undefined })}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border)',
+                        background: 'var(--input-bg)',
+                        color: 'var(--text-primary)',
+                        fontSize: '12px',
                       }}
-                      style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}
-                    />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pf.field}</span>
-                      <input
-                        type="text"
-                        value={pf.alias}
-                        onChange={e => {
-                          const updated = popupFields.map((f, j) =>
-                            j === i ? { ...f, alias: e.target.value } : f
-                          )
-                          updateConfig({ popupFields: updated })
-                        }}
-                        placeholder="Display label"
-                        style={{
-                          padding: '4px 6px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1px solid var(--border)',
-                          background: 'var(--input-bg)',
-                          color: 'var(--text-primary)',
-                          fontSize: '11px',
-                        }}
-                      />
-                    </div>
+                    >
+                      <option value="">{lang === 'ar' ? '-- بدون عنوان --' : '-- No title --'}</option>
+                      {availableFields.map(f => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
                   </div>
-                ))}
-              </div>
+
+                  {/* ── Field list ── */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {popupFields.map((pf, i) => (
+                      <div
+                        key={pf.field}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '18px 1fr',
+                          gap: '8px',
+                          alignItems: 'center',
+                          padding: '8px 10px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--border)',
+                          background: pf.visible ? 'var(--page-bg)' : 'transparent',
+                          opacity: pf.visible ? 1 : 0.5,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={pf.visible}
+                          onChange={e => {
+                            const updated = popupFields.map((f, j) =>
+                              j === i ? { ...f, visible: e.target.checked } : f
+                            )
+                            updateConfig({ popupFields: updated })
+                          }}
+                          style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pf.field}</span>
+                          <input
+                            type="text"
+                            value={pf.alias}
+                            onChange={e => {
+                              const updated = popupFields.map((f, j) =>
+                                j === i ? { ...f, alias: e.target.value } : f
+                              )
+                              updateConfig({ popupFields: updated })
+                            }}
+                            placeholder="Display label"
+                            style={{
+                              padding: '4px 6px',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--border)',
+                              background: 'var(--input-bg)',
+                              color: 'var(--text-primary)',
+                              fontSize: '11px',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </SettingsSection>
           )}
         </div>
@@ -823,12 +883,6 @@ function MapSettings({ widgetId, config }: MapSettingsProps) {
 
       {activeTab === 'behavior' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <ToggleSwitch
-            label={t.allowZoom}
-            value={config.allowZoom ?? true}
-            onChange={v => updateConfig({ allowZoom: v })}
-            description={t.allowZoomDesc}
-          />
           <ToggleSwitch
             label={t.allowPan}
             value={config.allowPan ?? true}

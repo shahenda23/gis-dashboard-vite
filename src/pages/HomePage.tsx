@@ -1,13 +1,19 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import Navbar from '../features/dashboard/components/Navbar'
+import WorkspaceSidebar from '../features/dashboard/components/WorkspaceSidebar'
+import WorkspaceTopbar from '../features/dashboard/components/WorkspaceTopbar'
+import CollapsibleSection from '../features/dashboard/components/CollapsibleSection'
 import DashboardCard from '../features/dashboard/components/DashboardCard'
 import ShareModal from '../features/dashboard/components/ShareModal'
-import Footer from '../features/dashboard/components/Footer'
+import TemplateCard from '../features/templates/components/TemplateCard'
+import TEMPLATES from '../features/templates/data/sampleTemplates'
 import AppLoader from '../components/AppLoader'
+
+const RECENT_PAGE_SIZE = 3
+const SHARED_PAGE_SIZE = 4
 
 function timeAgo(dateStr: string, lang: 'en' | 'ar'): string {
   const diff  = Date.now() - new Date(dateStr).getTime()
@@ -20,224 +26,328 @@ function timeAgo(dateStr: string, lang: 'en' | 'ar'): string {
   return lang === 'en' ? `${days}d ago` : `منذ ${days} ي`
 }
 
-function getGreeting(lang: 'en' | 'ar', name: string): string {
-  const h = new Date().getHours()
-  if (lang === 'ar') {
-    const g = h < 12 ? 'صباح الخير' : h < 17 ? 'مساء الخير' : 'مساء النور'
-    return name ? `${g}، ${name}` : g
-  }
-  const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
-  return name ? `${g}, ${name}` : g
-}
-
 function HomePage() {
   const navigate = useNavigate()
   const { lang } = useTheme()
   const { user }  = useAuth()
-  const [dashboards,   setDashboards]   = useState<any[]>([])
-  const [loading,      setLoading]      = useState(true)
-  const [shareModalId, setShareModalId] = useState<string | null>(null)
+  const isRTL = lang === 'ar'
 
-  const name     = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
-  const greeting = getGreeting(lang, name)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab: 'workspace' | 'templates' = searchParams.get('tab') === 'templates' ? 'templates' : 'workspace'
+  function setActiveTab(tab: 'workspace' | 'templates') {
+    setSearchParams(tab === 'templates' ? { tab: 'templates' } : {})
+  }
+  const [recentDashboards, setRecentDashboards] = useState<any[]>([])
+  const [sharedDashboards, setSharedDashboards] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [shareModalId, setShareModalId] = useState<string | null>(null)
+  const [recentExpanded, setRecentExpanded] = useState(false)
+  const [sharedExpanded, setSharedExpanded] = useState(false)
 
   useEffect(() => {
     if (!user) return
-    supabase
-      .from('dashboards')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-      .then(({ data, error }: { data: any[] | null; error: unknown }) => {
-        if (!error && data) setDashboards(data)
-        setLoading(false)
-      })
+    Promise.all([
+      supabase
+        .from('dashboards')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false }),
+      supabase
+        .from('dashboards')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_public', true)
+        .order('updated_at', { ascending: false }),
+    ]).then(([recent, shared]) => {
+      if (recent.data) setRecentDashboards(recent.data)
+      if (shared.data) setSharedDashboards(shared.data)
+      setLoading(false)
+    })
   }, [user])
 
   async function handleDelete(id: string) {
     await supabase.from('dashboards').delete().eq('id', id)
-    setDashboards(prev => prev.filter(d => d.id !== id))
+    setRecentDashboards(prev => prev.filter(d => d.id !== id))
+  }
+
+  function toCardProps(d: any) {
+    return {
+      id:           d.id,
+      title:        d.title,
+      description:  '',
+      editedAt:     timeAgo(d.updated_at, lang),
+      widgetCount:  d.widgets?.length ?? 0,
+      thumbnailUrl: '',
+      status:       'live' as const,
+      isPublic:     d.is_public,
+    }
   }
 
   const t = {
     en: {
-      countLine: (n: number) =>
-        n === 0 ? 'Your workspace is empty — create your first dashboard'
-                : `You have ${n} dashboard${n !== 1 ? 's' : ''} in your workspace`,
-      newBtn:  '+ New Dashboard',
-      section: 'Workspace',
-      newCard: 'New Dashboard',
-      newSub:  'Start from a template or blank canvas',
+      myWorkspace: 'My Workspace',
+      templates:   'Templates',
+      filter:      'Filter',
+      recent:      'Recent Dashboards',
+      shared:      'Shared Dashboards',
+      newCard:     'New Dashboard',
+      newSub:      'Start from a blank canvas or choose a template',
+      showMore:    'Show more',
+      showLess:    'Show less',
+      noShared:    'No public dashboards shared yet.',
+      footerRights:'© 2026 DashBuilder Inc. All rights reserved.',
+      privacy:     'Privacy Policy',
+      terms:       'Terms of Service',
+      contact:     'Contact Support',
     },
     ar: {
-      countLine: (n: number) =>
-        n === 0 ? 'مساحة العمل فارغة — أنشئ أول لوحة تحكم'
-                : `لديك ${n} لوحة تحكم في مساحة العمل`,
-      newBtn:  '+ لوحة جديدة',
-      section: 'مساحة العمل',
-      newCard: 'لوحة جديدة',
-      newSub:  'ابدأ من قالب أو لوحة فارغة',
+      myWorkspace: 'مساحتي',
+      templates:   'القوالب',
+      filter:      'تصفية',
+      recent:      'أحدث اللوحات',
+      shared:      'لوحات مشتركة',
+      newCard:     'لوحة جديدة',
+      newSub:      'ابدأ من لوحة فارغة أو اختر قالباً',
+      showMore:    'عرض المزيد',
+      showLess:    'عرض أقل',
+      noShared:    'لا توجد لوحات عامة مشتركة بعد.',
+      footerRights:'© 2026 DashBuilder Inc. جميع الحقوق محفوظة.',
+      privacy:     'سياسة الخصوصية',
+      terms:       'شروط الخدمة',
+      contact:     'الدعم الفني',
     },
   }[lang]
 
-  if (loading) return <AppLoader />
+  const visibleRecent = recentExpanded ? recentDashboards : recentDashboards.slice(0, RECENT_PAGE_SIZE)
+  const visibleShared = sharedExpanded ? sharedDashboards : sharedDashboards.slice(0, SHARED_PAGE_SIZE)
 
   return (
-    <div style={{
-      minHeight:       '100vh',
-      display:         'flex',
-      flexDirection:   'column',
-      background:      '#f1f5f9',
-      // backgroundImage: 'radial-gradient(circle, #e0e6ec 1px, transparent 1px)',
-      backgroundSize:  '22px 22px',
-      direction:       lang === 'ar' ? 'rtl' : 'ltr',
-    }}>
+    <div style={{ height: '100vh', display: 'flex', overflow: 'hidden', background: 'var(--page-bg)' }}>
+      <WorkspaceSidebar onTemplatesClick={() => setActiveTab('templates')} />
 
-      {/* ── Navbar: أبيض full-width، sticky، rounded أسفل بس ── */}
-      <Navbar activeTab="dashboards" />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <WorkspaceTopbar />
 
-      {/* ── Main content: بيتسكرول عادي مع الـ body ── */}
-      <main style={{
-        flex:     1,
-        maxWidth: '1300px',
-        width:    '100%',
-        margin:   '0 auto',
-        padding:  '4px 40px 64px',
-      }}>
-
-          {/* ── Greeting ── */}
+        {/* Fixed-height workspace container — scrolling happens inside it */}
+        <div style={{ flex: 1, overflow: 'hidden', padding: '20px 24px' }}>
           <div style={{
-            padding:        '40px 0 44px',
-            display:        'flex',
-            alignItems:     'flex-end',
-            justifyContent: 'space-between',
-            gap:            '24px',
-            flexWrap:       'wrap',
+            background:   'var(--surface)',
+            border:       '1px solid var(--border)',
+            borderRadius: 'var(--radius-xl)',
+            height:       '100%',
+            display:      'flex',
+            flexDirection:'column',
+            overflow:     'hidden',
+            direction:    isRTL ? 'rtl' : 'ltr',
           }}>
-            <div>
-              <p style={{
-                fontSize:    '13px',
-                color:       '#94a3b8',
-                margin:      '0 0 10px',
-                fontWeight:  '500',
-                letterSpacing: '0.1px',
-              }}>
-                {greeting}
-              </p>
-              <h1 style={{
-                fontSize:      '28px',
-                fontWeight:    '700',
-                color:         '#0f172a',
-                margin:        '0',
-                letterSpacing: '-0.5px',
-                lineHeight:    1.2,
-              }}>
-                {t.countLine(dashboards.length)}
-              </h1>
-            </div>
 
-          </div>
-
-          {/* ── Section label ── */}
-          <div style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{
-              fontSize:      '12px',
-              fontWeight:    '600',
-              color:         '#94a3b8',
-              letterSpacing: '0.8px',
-              textTransform: 'uppercase',
+            {/* Tabs + Filter */}
+            <div style={{
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'space-between',
+              padding:        '16px 24px',
+              flexShrink:     0,
             }}>
-              {t.section}
-            </span>
-            <div style={{ flex: 1, height: '1px', background: 'rgba(203,213,225,0.6)' }} />
-          </div>
-
-          {/* ── Cards grid ── */}
-          <div style={{
-            display:             'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(265px, 1fr))',
-            gap:                 '16px',
-          }}>
-
-            {/* New dashboard card */}
-            <div
-              onClick={() => navigate('/templates')}
-              style={{
-                background:     'rgba(255,255,255,0.70)',
-                border:         '1.5px dashed #cbd5e1',
-                borderRadius:   '14px',
-                minHeight:      '228px',
-                display:        'flex',
-                flexDirection:  'column',
-                alignItems:     'center',
-                justifyContent: 'center',
-                gap:            '10px',
-                cursor:         'pointer',
-                transition:     'border-color 0.2s, background 0.2s, transform 0.18s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = '#0ea5e9'
-                e.currentTarget.style.background  = 'rgba(240,249,255,0.85)'
-                e.currentTarget.style.transform   = 'translateY(-2px)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = '#cbd5e1'
-                e.currentTarget.style.background  = 'rgba(255,255,255,0.70)'
-                e.currentTarget.style.transform   = 'translateY(0)'
-              }}
-            >
-              <div style={{
-                width:        '42px',
-                height:       '42px',
-                borderRadius: '12px',
-                background:   'rgba(255,255,255,0.88)',
-                border:       '1px solid #e2e8f0',
-                display:      'flex',
-                alignItems:   'center',
-                justifyContent: 'center',
-                color:        '#94a3b8',
-              }}>
-                <svg width="18" height="18" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                  <path d="M6.5 1v11M1 6.5h11"/>
-                </svg>
+              <div style={{ display: 'flex', gap: '20px' }}>
+                {(['workspace', 'templates'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    style={{
+                      background:   'transparent',
+                      border:       'none',
+                      borderBottom: activeTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
+                      padding:      '6px 2px',
+                      fontSize:     '14px',
+                      fontWeight:   activeTab === tab ? '700' : '500',
+                      color:        activeTab === tab ? 'var(--accent)' : 'var(--text-secondary)',
+                      cursor:       'pointer',
+                    }}
+                  >
+                    {tab === 'workspace' ? t.myWorkspace : t.templates}
+                  </button>
+                ))}
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '13px', fontWeight: '600', color: '#374151', margin: '0 0 4px' }}>{t.newCard}</p>
-                <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>{t.newSub}</p>
-              </div>
+
+              {activeTab === 'workspace' && (
+                <button style={{
+                  display:      'flex',
+                  alignItems:   'center',
+                  gap:          '6px',
+                  padding:      '7px 14px',
+                  background:   'var(--page-bg)',
+                  border:       '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize:     '12px',
+                  fontWeight:   '600',
+                  color:        'var(--text-secondary)',
+                  cursor:       'pointer',
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <path d="M1 2h12M3.5 7h7M6 12h2"/>
+                  </svg>
+                  {t.filter}
+                </button>
+              )}
             </div>
 
-            {/* Dashboard cards */}
-            {dashboards.map(d => (
-              <DashboardCard
-                key={d.id}
-                dashboard={{
-                  id:           d.id,
-                  title:        d.title,
-                  description:  '',
-                  editedAt:     timeAgo(d.updated_at, lang),
-                  widgetCount:  d.widgets?.length ?? 0,
-                  thumbnailUrl: '',
-                  status:       'live',
-                  isPublic:     d.is_public,
-                }}
-                onOpen={   id => navigate(`/builder/${id}`)}
-                onEdit={   id => navigate(`/builder/${id}`)}
-                onPreview={ id => navigate(`/dashboard/${id}`)}
-                onShare={  id => setShareModalId(id)}
-                onDelete={handleDelete}
-              />
-            ))}
+            <div style={{ padding: '20px 24px', flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              {loading ? (
+                <AppLoader />
+              ) : activeTab === 'templates' ? (
+                <div style={{
+                  display:             'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                  gap:                 '16px',
+                }}>
+                  {TEMPLATES.map(template => (
+                    <TemplateCard
+                      key={template.id}
+                      template={template}
+                      onSelect={id => navigate(`/builder/${id}`)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <CollapsibleSection title={t.recent}>
+                    <div style={{
+                      display:             'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                      gap:                 '16px',
+                      marginBottom:        recentDashboards.length > RECENT_PAGE_SIZE ? '14px' : 0,
+                    }}>
+                      <div
+                        onClick={() => setActiveTab('templates')}
+                        style={{
+                          background:     'rgba(255,255,255,0.7)',
+                          border:         '1.5px dashed #cbd5e1',
+                          borderRadius:   'var(--radius-xl)',
+                          minHeight:      '210px',
+                          display:        'flex',
+                          flexDirection:  'column',
+                          alignItems:     'center',
+                          justifyContent: 'center',
+                          gap:            '10px',
+                          cursor:         'pointer',
+                          transition:     'border-color 0.2s, background 0.2s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = 'rgba(255,255,255,0.7)' }}
+                      >
+                        <div style={{
+                          width: '38px', height: '38px', borderRadius: '10px',
+                          background: '#fff', border: '1px solid var(--border)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8',
+                        }}>
+                          <svg width="16" height="16" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                            <path d="M6.5 1v11M1 6.5h11"/>
+                          </svg>
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '0 16px' }}>
+                          <p style={{ fontSize: '13px', fontWeight: '600', color: '#374151', margin: '0 0 4px' }}>{t.newCard}</p>
+                          <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>{t.newSub}</p>
+                        </div>
+                      </div>
+
+                      {visibleRecent.map(d => (
+                        <DashboardCard
+                          key={d.id}
+                          dashboard={toCardProps(d)}
+                          onOpen={   id => navigate(`/builder/${id}`)}
+                          onEdit={   id => navigate(`/builder/${id}`)}
+                          onPreview={id => navigate(`/dashboard/${id}`)}
+                          onShare={  id => setShareModalId(id)}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </div>
+
+                    {recentDashboards.length > RECENT_PAGE_SIZE && (
+                      <button
+                        onClick={() => setRecentExpanded(v => !v)}
+                        style={{
+                          background: 'transparent', border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-md)', padding: '7px 16px',
+                          fontSize: '12px', fontWeight: '600', color: 'var(--accent)', cursor: 'pointer',
+                        }}
+                      >
+                        {recentExpanded ? t.showLess : t.showMore}
+                      </button>
+                    )}
+                  </CollapsibleSection>
+
+                  <CollapsibleSection title={t.shared} defaultOpen={false}>
+                    {sharedDashboards.length === 0 ? (
+                      <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>{t.noShared}</p>
+                    ) : (
+                      <>
+                        <div style={{
+                          display:             'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                          gap:                 '16px',
+                          marginBottom:        sharedDashboards.length > SHARED_PAGE_SIZE ? '14px' : 0,
+                        }}>
+                          {visibleShared.map(d => (
+                            <DashboardCard
+                              key={d.id}
+                              dashboard={toCardProps(d)}
+                              onOpen={   id => navigate(`/dashboard/${id}`)}
+                              onEdit={   id => navigate(`/dashboard/${id}`)}
+                              onPreview={id => navigate(`/dashboard/${id}`)}
+                              onShare={  id => setShareModalId(id)}
+                              onDelete={() => {}}
+                            />
+                          ))}
+                        </div>
+                        {sharedDashboards.length > SHARED_PAGE_SIZE && (
+                          <button
+                            onClick={() => setSharedExpanded(v => !v)}
+                            style={{
+                              background: 'transparent', border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-md)', padding: '7px 16px',
+                              fontSize: '12px', fontWeight: '600', color: 'var(--accent)', cursor: 'pointer',
+                            }}
+                          >
+                            {sharedExpanded ? t.showLess : t.showMore}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </CollapsibleSection>
+                </>
+              )}
+            </div>
+
+            {/* Small in-container footer — pinned, never scrolls */}
+            <div style={{
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'space-between',
+              flexWrap:       'wrap',
+              gap:            '10px',
+              padding:        '16px 24px',
+              borderTop:      '1px solid var(--border)',
+              fontSize:       '12px',
+              color:          'var(--text-muted)',
+              flexShrink:     0,
+            }}>
+              <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>DashBuilder</span>
+              <div style={{ display: 'flex', gap: '18px' }}>
+                <span style={{ cursor: 'pointer' }}>{t.privacy}</span>
+                <span style={{ cursor: 'pointer' }}>{t.terms}</span>
+                <span style={{ cursor: 'pointer' }}>{t.contact}</span>
+              </div>
+              <span>{t.footerRights}</span>
+            </div>
           </div>
-        </main>
+        </div>
+      </div>
 
       {shareModalId && (
         <ShareModal dashboardId={shareModalId} onClose={() => setShareModalId(null)} />
       )}
-
-      {/* ── Footer ── */}
-      <Footer />
-
     </div>
   )
 }

@@ -137,6 +137,7 @@ export interface MapConfig {
   showBasemapGallery: boolean
   popupTitleField?: string
   popupFields?: PopupFieldConfig[]
+  visibleLayerIds?: string[]
 }
 
 export interface KPIConfig {

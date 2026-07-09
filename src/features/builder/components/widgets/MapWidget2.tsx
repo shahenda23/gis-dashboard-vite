@@ -1242,7 +1242,7 @@ function createLegend(map: maplibregl.Map, storeLayers: any[], showLegend: boole
   root.style.cssText = `position: absolute; top: 10px; left: 10px; z-index: 2; pointer-events: none;`
 
   const toggle = document.createElement('button')
-  toggle.title = 'Hide legend'
+  toggle.title = 'Show legend'
   toggle.style.cssText = `
     width: 30px; height: 30px; border-radius: 8px;
     background: rgba(255,255,255,0.98); border: 1px solid #e5e7eb;
@@ -1250,7 +1250,7 @@ function createLegend(map: maplibregl.Map, storeLayers: any[], showLegend: boole
     cursor: pointer; display: flex; align-items: center; justify-content: center;
     pointer-events: auto; margin-bottom: 4px;
   `
-  toggle.innerHTML = '<span style="font-size:16px;line-height:1;">✕</span>'
+  toggle.innerHTML = '<span style="font-size:16px;line-height:1;">☰</span>'
 
   const legend = document.createElement('div')
   legend.style.cssText = `
@@ -1261,7 +1261,7 @@ function createLegend(map: maplibregl.Map, storeLayers: any[], showLegend: boole
     border: 1px solid #e5e7eb; border-radius: 14px;
     padding: 12px 14px;
     box-shadow: 0 3px 12px rgba(0,0,0,0.12);
-    color: #111827; display: block; pointer-events: auto;
+    color: #111827; display: none; pointer-events: auto;
   `
 
   const title = document.createElement('p')
@@ -1377,14 +1377,18 @@ function MapWidget({ widgetId: _widgetId, config }: MapWidgetProps) {
   const scaleRef     = useRef<maplibregl.ScaleControl | null>(null)
   const isLoaded     = useRef(false)
   const prevLayerIds = useRef<Set<string>>(new Set())
-  const showLegendRef = useRef(config.showLegend !== false)
-  const showPopupRef  = useRef(config.showPopup  !== false)
+  const showLegendRef = useRef(config.showLegend === true)
+  const showPopupRef  = useRef(config.showPopup  === true)
   const configRef     = useRef(config)
 
   const { layers: storeLayers, zoomToLayerId } = useBuilderStore()
 
-  showLegendRef.current = config.showLegend !== false
-  showPopupRef.current  = config.showPopup  !== false
+  const mapLayers = config.visibleLayerIds
+    ? storeLayers.filter(l => config.visibleLayerIds!.includes(l.id))
+    : storeLayers
+
+  showLegendRef.current = config.showLegend === true
+  showPopupRef.current  = config.showPopup  === true
   configRef.current     = config
 
   const getConfig = () => configRef.current
@@ -1406,7 +1410,7 @@ function MapWidget({ widgetId: _widgetId, config }: MapWidgetProps) {
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
     map.on('load', () => {
       isLoaded.current = true
-      syncLayers(map, storeLayers, prevLayerIds, showLegendRef.current, showPopupRef, getConfig)
+      syncLayers(map, mapLayers, prevLayerIds, showLegendRef.current, showPopupRef, getConfig)
     })
     mapRef.current = map
     return () => {
@@ -1433,7 +1437,7 @@ function MapWidget({ widgetId: _widgetId, config }: MapWidgetProps) {
     map.setStyle(mapStyle)
     map.once('style.load', () => {
       prevLayerIds.current = new Set()
-      syncLayers(map, storeLayers, prevLayerIds, showLegendRef.current, showPopupRef, getConfig)
+      syncLayers(map, mapLayers, prevLayerIds, showLegendRef.current, showPopupRef, getConfig)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapStyle])
@@ -1494,8 +1498,8 @@ function MapWidget({ widgetId: _widgetId, config }: MapWidgetProps) {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !isLoaded.current) return
-    syncLayers(map, storeLayers, prevLayerIds, showLegendRef.current, showPopupRef, getConfig)
-  }, [storeLayers])  // eslint-disable-line react-hooks/exhaustive-deps
+    syncLayers(map, mapLayers, prevLayerIds, showLegendRef.current, showPopupRef, getConfig)
+  }, [storeLayers, config.visibleLayerIds])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 10. Zoom to layer ─────────────────────────────────
   useEffect(() => {
@@ -1513,7 +1517,7 @@ function MapWidget({ widgetId: _widgetId, config }: MapWidgetProps) {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !isLoaded.current) return
-    syncLayers(map, storeLayers, prevLayerIds, config.showLegend !== false, showPopupRef, getConfig)
+    syncLayers(map, mapLayers, prevLayerIds, config.showLegend === true, showPopupRef, getConfig)
   }, [config.showLegend])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

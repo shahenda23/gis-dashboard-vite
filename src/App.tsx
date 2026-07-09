@@ -1,8 +1,9 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import type { ReactElement } from 'react'
 import HomePage from './pages/HomePage'
+// import HomePageV1 from './pages/HomePageV1'
 import LandingPage from './pages/LandingPage'
-import TemplatePickerPage from './pages/TemplatePickerPage'
+// import TemplatePickerPage from './pages/TemplatePickerPage'
 import DashboardBuilderPage from './pages/DashboardBuilderPage'
 import DashboardViewPage from './pages/DashboardViewPage'
 import DashboardSharedPage from './pages/DashboardSharedPage'
@@ -32,7 +33,8 @@ const router = createBrowserRouter([
   { path: '/login',        element: <LoginRoute /> },
   { path: '/',             element: <RootRoute /> },
   { path: '/home',         element: <RequireAuth><HomePage /></RequireAuth> },
-  { path: '/templates',    element: <RequireAuth><TemplatePickerPage /></RequireAuth> },
+  // { path: '/home-v1',      element: <RequireAuth><HomePageV1 /></RequireAuth> },
+  // { path: '/templates',    element: <RequireAuth><TemplatePickerPage /></RequireAuth> },
   { path: '/builder/:id',       element: <RequireAuth><DashboardBuilderPage /></RequireAuth> },
   { path: '/dashboard/preview', element: <RequireAuth><DashboardViewPage /></RequireAuth> },
   { path: '/dashboard/:id',     element: <DashboardSharedPage /> },
