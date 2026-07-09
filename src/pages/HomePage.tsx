@@ -2,7 +2,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { getUserDashboards, getUserPublicDashboards, deleteDashboardById } from '../services/dashboardService'
 import WorkspaceSidebar from '../features/dashboard/components/WorkspaceSidebar'
 import WorkspaceTopbar from '../features/dashboard/components/WorkspaceTopbar'
 import CollapsibleSection from '../features/dashboard/components/CollapsibleSection'
@@ -47,17 +47,8 @@ function HomePage() {
   useEffect(() => {
     if (!user) return
     Promise.all([
-      supabase
-        .from('dashboards')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false }),
-      supabase
-        .from('dashboards')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_public', true)
-        .order('updated_at', { ascending: false }),
+      getUserDashboards(user.id),
+      getUserPublicDashboards(user.id),
     ]).then(([recent, shared]) => {
       if (recent.data) setRecentDashboards(recent.data)
       if (shared.data) setSharedDashboards(shared.data)
@@ -66,7 +57,7 @@ function HomePage() {
   }, [user])
 
   async function handleDelete(id: string) {
-    await supabase.from('dashboards').delete().eq('id', id)
+    await deleteDashboardById(id)
     setRecentDashboards(prev => prev.filter(d => d.id !== id))
   }
 

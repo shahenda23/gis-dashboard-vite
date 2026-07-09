@@ -11,7 +11,7 @@ import WidgetDock from '../features/builder/components/WidgetDock'
 import WidgetCanvas from '../features/builder/components/WidgetCanvas'
 import SettingsPanel from '../features/builder/components/settings/SettingsPanel'
 import AppLoader from '../components/AppLoader'
-import { supabase } from '../lib/supabase'
+import { countDashboards } from '../services/dashboardService'
 
 // IDs that come from the template picker — not real Supabase dashboard IDs
 const TEMPLATE_IDS = new Set(['blank', 'urban', 'field', 'environmental', 'infrastructure'])
@@ -73,9 +73,7 @@ function DashboardBuilderPage() {
     } else {
       // Template or blank — create a fresh dashboard
       async function initNewDashboard() {
-        const { count } = await supabase
-          .from('dashboards')
-          .select('*', { count: 'exact', head: true })
+        const { count } = await countDashboards()
 
         const num   = (count ?? 0) + 1
         const title = `Untitled Dashboard ${num}`

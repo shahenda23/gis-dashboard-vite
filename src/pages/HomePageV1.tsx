@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { getUserDashboards, deleteDashboardById } from '../services/dashboardService'
 import Navbar from '../features/dashboard/components/Navbar'
 import DashboardCard from '../features/dashboard/components/DashboardCard'
 import ShareModal from '../features/dashboard/components/ShareModal'
@@ -43,19 +43,14 @@ function HomePageV1() {
 
   useEffect(() => {
     if (!user) return
-    supabase
-      .from('dashboards')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-      .then(({ data, error }: { data: any[] | null; error: unknown }) => {
-        if (!error && data) setDashboards(data)
-        setLoading(false)
-      })
+    getUserDashboards(user.id).then(({ data, error }: { data: any[] | null; error: unknown }) => {
+      if (!error && data) setDashboards(data)
+      setLoading(false)
+    })
   }, [user])
 
   async function handleDelete(id: string) {
-    await supabase.from('dashboards').delete().eq('id', id)
+    await deleteDashboardById(id)
     setDashboards(prev => prev.filter(d => d.id !== id))
   }
 
